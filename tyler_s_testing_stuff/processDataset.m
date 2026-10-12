@@ -109,7 +109,7 @@ samples.Split = groupSplit(groupIdx);
 % check for all groups containing all data types (hab and nonhab)
 for split = ["Train", "Validation", "Test"]
     idx = samples.Split == split;
-    nHAB = sum(samples.Label(idc) == "HAB");
+    nHAB = sum(samples.Label(idx) == "HAB");
     nNonHAB = sum(samples.Label(idx) == "NonHAB");
     if nHAB == 0 || nNonHAB == 0
         error("adjust grouping it messed up my bad");
