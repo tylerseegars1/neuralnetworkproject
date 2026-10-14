@@ -1,14 +1,18 @@
+% clean
 clear;
 clc;
 
 rng(42069);
 
+% get files
 root = fileparts(mfilename("fullpath"));
 dataDir = fullfile(root, "data", "amfitrite-open-waters-hab-sentinel2", "data");
 resultsDir = fullfile(root, "results");
+
 if ~isfolder(dataDir)
     error("no dataset wtf");
 end
+
 if ~isfolder(resultsDir)
     mkdir(resultsDir);
 end
@@ -57,14 +61,14 @@ for i = 1:numel(folders)
     end
 
     % read metadata
-    metadateFile = fullfile(folder, "metadata.json");
+    metadataFile = fullfile(folder, "metadata.json");
     if ~isfile(metadataFile)
         warning("missing metadata for %s wtf", name);
         continue;
     end
-    meta = jsondecode(filread(metadataFile));
+    meta = jsondecode(fileread(metadataFile));
     fields = ["center_lat", "center_lon", "sat_item"];
-    if ~all(isfield(meta, cellstr(requiredFields)))
+    if ~all(isfield(meta, cellstr(fields)))
         warning("incomplete metadata in %s wtf", name);
         continue;
     end
@@ -88,25 +92,68 @@ end
 
 samples = table(paths, categorical(labels, ["HAB", "NonHAB"]), groups, satItems, variableNames=["Path", "Label", "Group", "SatelliteItem"]);
 
-% shuffle groups before classifying
+% grouping and train/validate/test sets
 uniqueGroups = unique(samples.Group);
 nGroups = numel(uniqueGroups);
-uniqueGroups = uniqueGroups(randperm(nGroups));
 
-% 70/15/15 split for training validation and test
-nTrain = floor(0.7 * nGroups);
-nVal = floor(0.15 * nGroups);
-groupSplit = strings(nGroups, 1);
+ratios = [0.7, 0.15, 0.15];
+splitNames = ["Train", "Validation", "Test"];
 
-groupSplit(1:nTrain) = "Train";
-groupSplit(nTrain+1:nTrain+nVal) = "Validation";
-groupSplit(nTrain+nVal+1:end) = "Test";
+bestScore = inf;
+bestSplit = strings(height(samples), 1);
 
-% assign samples to groups
-[~, groupIdx] = ismember(samples.Group, uniqueGroups);
-samples.Split = groupSplit(groupIdx);
+for attempt = 1:1000
+    shuffledGroups = uniqueGroups(randperm(nGroups));
 
-% check for all groups containing all data types (hab and nonhab)
+    nTrain = floor(0.7 * nGroups);
+    nVal = floor(0.15 * nGroups);
+
+    groupAssignments = strings(nGroups, 1);
+    groupAssignments(1:nTrain) = "Train";
+    groupAssignments(nTrain+1:nTrain+nVal) = "Validation";
+    groupAssignments(nTrain+nVal+1:end) = "Test";
+    
+    [~, groupIdx] = ismember(samples.Group, shuffledGroups);
+
+    candidateSplit = groupAssignments(groupIdx);
+    score = 0;
+    valid = true;
+
+    for s = 1:3
+        idx = candidateSplit == splitNames(s);
+
+        total = sum(idx);
+        nHAB = sum(samples.Label(idx) == "HAB");
+        nNonHAB = sum(samples.Label(idx) == "NonHAB");
+
+        if total == 0 || nHAB == 0 || nNonHAB == 0
+            valid = false;
+            break;
+        end
+
+        actualRatio = total / height(samples);
+        score = score + abs(actualRatio - ratios(s));
+
+        overallHABRatio = mean(samples.Label == "HAB");
+        splitHABRatio = nHAB / total;
+
+        score = score + abs(splitHABRatio - overallHABRatio);
+    end
+
+    if valid && score < bestScore
+        bestScore = score;
+        bestSplit = candidateSplit;
+    end
+end
+
+if isinf(bestScore)
+    error("couldnt find split woops");
+end
+
+samples.Split = bestSplit;
+
+
+% make sure each group has diverse data types (hab and nonhab)
 for split = ["Train", "Validation", "Test"]
     idx = samples.Split == split;
     nHAB = sum(samples.Label(idx) == "HAB");
@@ -116,14 +163,14 @@ for split = ["Train", "Validation", "Test"]
     end
 end
 
-% validation for no unique values in groups
+% validation for unique values in groups
 assert(numel(unique(samples.Group(samples.Split == "Train"))) + ...
     numel(unique(samples.Group(samples.Split == "Validation"))) + ...
     numel(unique(samples.Group(samples.Split == "Test"))) ...
     == numel(unique(samples.Group)));
 
-% save processed dataset
-save(fullfuile(resultsDir, "dataset.mat"), "samples");
+% save 
+save(fullfile(resultsDir, "dataset.mat"), "samples");
 
 writetable(samples, fullfile(resultsDir, "dataset_split.csv"));
 
