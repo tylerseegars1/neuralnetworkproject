@@ -21,7 +21,9 @@ explorer $dest
 # Datasets
 ## Amfitrite
 ### Open Waters
-https://huggingface.co/datasets/kostaspic/amfitrite-open-waters-hab-sentinel2
+[Link to Dataset](https://huggingface.co/datasets/kostaspic/amfitrite-open-waters-hab-sentinel2)
+
+[Dataset Info](docs/dataset.md)
 ### Inland
 https://huggingface.co/datasets/kostaspic/amfitrite-inland-waters-hab-sentinel2
 
