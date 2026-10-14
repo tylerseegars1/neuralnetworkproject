@@ -1,0 +1,28 @@
+# Normalize line endings for real text files
+* text=auto
+
+# MATLAB code is plain text; this gives nicer diffs
+*.m      text diff=matlab
+
+# MATLAB binary formats: never change line endings, never try to merge
+*.mat    binary
+*.mlx    binary
+*.fig    binary
+*.mlapp  binary
+*.mlproj binary
+*.mldatx binary
+*.p      binary
+*.mex*   binary
+*.slx    binary
+*.sldd   binary
+
+# Other binary files this project will probably have
+*.tif    binary
+*.tiff   binary
+*.png    binary
+*.jpg    binary
+*.pdf    binary
+*.xlsx   binary
+*.docx   binary
+*.pptx   binary
+*.zip    binary

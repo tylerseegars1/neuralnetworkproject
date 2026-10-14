@@ -1,0 +1,14 @@
+# Ignore the massive dataset
+/data/
+
+*.asv
+
+# Training output (uncomment whatever folders your team ends up using)
+# checkpoints/
+# results/
+
+
+Thumbs.db
+desktop.ini
+.DS_Store
+~$*
