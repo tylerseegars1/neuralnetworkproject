@@ -24,9 +24,6 @@
 | Pure land (>99% land)       |        110 |
 | **Total**                   |  **2,982** |
 
----
-
-## Tile/Folder Composition
 
 ## Tile/Folder Composition
 
@@ -40,6 +37,8 @@
 | `WVP_raw.tif`                | Water vapour map                           | Optional extra input     |
 | `cyfi_prediction_map.png`    | Rendered CyFi prediction image             | Human visualization only |
 | `metadata.json`              | Date, location, cloud %, counts            | Per-tile info            |
+
+### 
 
 ### 12 Spectral Bands
 `<BAND>_raw.tif` — one file per band (e.g., `B01_raw.tif`, `B8A_raw.tif`)
@@ -104,3 +103,37 @@
 | `center_lat/lon`  | Tile center coordinates              |
 | `dataset`         | Source/subset name                   |
 | `tile_status`     | Tile category/status                 |
+| `sat_item`        | Sentinel-2 scene ID the tile was cut from. **Blank for all 220 cloud/land tiles** (checked in the CSV 2026-10-17) |
+
+### Anatomy of a `sat_item`
+
+Example: `S2B_MSIL2A_20210227T101029_R022_T34VCL_20210227T214401`
+
+| Piece | Meaning |
+|-------|---------|
+| `S2B` | Which of the two Sentinel-2 satellites (A or B) took it |
+| `MSIL2A` | MultiSpectral Instrument, Level-2A = atmospherically corrected (that is why `SCL`, `AOT`, `WVP` exist) |
+| `20210227T101029` | Sensing date and time (UTC) |
+| `R022` | Relative orbit number (which ground track) |
+| `T34VCL` | MGRS 100 km x 100 km square: UTM zone 34, latitude band V, square CL |
+| `20210227T214401` | When the product file was generated |
+
+So a `sat_item` is one 100 km granule on one date. The same square of Earth is revisited every ~5 days and gets a new `sat_item` each time. Our 256x256 tiles are small cut-outs from inside a granule.
+
+### `tile_status` values (from the dataset card, 2026-10-17)
+
+| Value | Meaning | Count in master CSV |
+|-------|---------|--------------------:|
+| `on_measurment` | Tile contains the exact in-situ measurement point | ___ |
+| `near_measurment` | One of the 8 tiles around a measurement tile (the authors' 3x3 grid strategy) | ___ |
+| `imputed` | Same known location, different date, downloaded mainly to get clean non-HAB tiles for class balance. 18 imputed tiles turned out to be HAB on inspection | ___ |
+| `land` | Distractor, >99% land pixels | 110 |
+| `clouds` | Distractor, >99% cloud pixels | 110 |
+
+(Spelling "measurment" is the authors' own; match it exactly when comparing text.)
+
+Why it matters for the split: a measurement tile and its 8 neighbours overlap the same water on the same day, and imputed tiles revisit the same spot on other days. Tiles that share a location must stay in the same split or the test set is not independent. Source: https://huggingface.co/datasets/kostaspic/amfitrite-open-waters-hab-sentinel2
+
+Two more facts from the card's methodology section:
+- Imputed tiles come from **HAB locations** that had no clean non-HAB neighbour, re-downloaded on other dates. So an imputed non-HAB tile and a HAB tile often share the exact same centre. A model that learns "this spot = HAB" will look good on a random split and be wrong.
+- Labels were decided by CyFi + an ensemble of 4 deep-learning models + manual checks, so the ground truth is partly model-made (see the "Watch out: label leakage" section of the project plan).
