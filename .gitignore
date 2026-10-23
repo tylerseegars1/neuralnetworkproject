@@ -1,5 +1,7 @@
-# Ignore the massive dataset
+# Ignore the massive dataset (getAmfitrite.m downloads it into dataset/)
+/datasets/
 /data/
+/results/
 
 *.asv
 
@@ -12,3 +14,4 @@ Thumbs.db
 desktop.ini
 .DS_Store
 ~$*
+/testing.m

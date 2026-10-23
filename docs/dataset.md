@@ -27,7 +27,7 @@
 
 ## Tile/Folder Composition
 
-**General path:** `data/<ID>_<HAB|nonHAB|land|clouds>/`
+**General path:** `dataset/amfitrite_open_waters/data/<ID>_<HAB|nonHAB|land|clouds>/` (downloaded by `getAmfitrite.m`, see the README)
 
 | File                         | Contents                                   | Role                     |
 |------------------------------|--------------------------------------------|--------------------------|
@@ -120,7 +120,9 @@ Example: `S2B_MSIL2A_20210227T101029_R022_T34VCL_20210227T214401`
 
 So a `sat_item` is one 100 km granule on one date. The same square of Earth is revisited every ~5 days and gets a new `sat_item` each time. Our 256x256 tiles are small cut-outs from inside a granule.
 
-### `tile_status` values (from the dataset card, 2026-10-17)
+https://sentiwiki.copernicus.eu/web/s2-processing
+
+### `tile_status` values 
 
 | Value | Meaning | Count in master CSV |
 |-------|---------|--------------------:|

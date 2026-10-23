@@ -8,7 +8,7 @@ rng(42);
 % get files
 scriptFolder = fileparts(mfilename("fullpath"));
 root = fileparts(scriptFolder);
-dataDir = fullfile(root, "data/amfitrite", "data/amfitrite");
+dataDir = fullfile(root, "datasets/amfitrite_open_waters/data");
 resultsDir = fullfile(root, "results");
 
 
@@ -27,6 +27,8 @@ bands = ["B01", "B02", "B03", "B04", "B05", "B06", "B07", "B08", "B8A", "B09", "
 folders = dir(dataDir);
 folders = folders([folders.isdir]);
 names = string({folders.name});
+
+% filters the folders array to exclude entries whoses names are "." or ".."
 folders = folders(~ismember(names, [".", ".."]));
 
 % storage
@@ -84,7 +86,7 @@ for i = 1:numel(folders)
     lonGroup = floor(lon);
     group = sprintf("geo_%d_%d", latGroup, lonGroup);
 
-    paths(end+1, 1) = string(folder);
+    paths(end+1, 1) = string(name);
     labels(end+1, 1) = label;
     groups(end+1, 1) = group;
     satItems(end+1, 1) = string(meta.sat_item);
