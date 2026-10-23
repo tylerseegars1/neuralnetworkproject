@@ -27,11 +27,11 @@
 
 ## Tile/Folder Composition
 
-**General path:** `dataset/amfitrite_open_waters/data/<ID>_<HAB|nonHAB|land|clouds>/` (downloaded by `getAmfitrite.m`, see the README)
+**General path:** `dataset/amfitrite_open_waters/data/<ID>_<HAB|nonHAB|land|clouds>/`
 
 | File                         | Contents                                   | Role                     |
 |------------------------------|--------------------------------------------|--------------------------|
-| `B01_raw.tif` … `B12_raw.tif` | 12 files, one spectral band each          | Main model input         |
+| `B01_raw.tif` … `B12_raw.tif`| 12 files, one spectral band each           | Main model input         |
 | `SCL_raw.tif`                | Per-pixel scene classification             | Water mask               |
 | `AOT_raw.tif`                | Atmospheric haze map                       | Optional extra input     |
 | `WVP_raw.tif`                | Water vapour map                           | Optional extra input     |
@@ -111,16 +111,26 @@ Example: `S2B_MSIL2A_20210227T101029_R022_T34VCL_20210227T214401`
 
 | Piece | Meaning |
 |-------|---------|
-| `S2B` | Which of the two Sentinel-2 satellites (A or B) took it |
+| `S2B` | Which Sentinel-2 satellite took it: A, B or C (2C took over from 2A on 21 Jan 2025; 8 imputed tiles are `S2C`) |
 | `MSIL2A` | MultiSpectral Instrument, Level-2A = atmospherically corrected (that is why `SCL`, `AOT`, `WVP` exist) |
 | `20210227T101029` | Sensing date and time (UTC) |
 | `R022` | Relative orbit number (which ground track) |
-| `T34VCL` | MGRS 100 km x 100 km square: UTM zone 34, latitude band V, square CL |
+| `T34VCL` | MGRS square: UTM zone 34, latitude band V, square CL. Squares sit on a 100 km grid but are 109.8 km wide, so neighbours overlap by ~10 km |
 | `20210227T214401` | When the product file was generated |
 
-So a `sat_item` is one 100 km granule on one date. The same square of Earth is revisited every ~5 days and gets a new `sat_item` each time. Our 256x256 tiles are small cut-outs from inside a granule.
+So a `sat_item` is one ~110 km granule on one date. The same square of Earth is revisited every 5 days at the equator, and every 2-3 days at mid-latitudes because neighbouring ground tracks overlap, and gets a new `sat_item` each time. Our 256x256 tiles are small cut-outs from inside a granule.
 
 https://sentiwiki.copernicus.eu/web/s2-processing
+
+### From orbit to tile
+
+1. **Datatake:** the camera is a pushbroom scanner with a 290 km wide swath. The observation plan switches it on at most once per orbit, over land, coastal water up to 20 km offshore, the Mediterranean and closed seas. It then records one continuous run, up to 15,000 km long. Far-open ocean is mostly not imaged.
+2. **Granule = `sat_item`:** the datatake is cut onto the fixed MGRS grid, about 3 squares across the swath. Edge squares can be partly empty.
+3. **Tile:** the authors cut 256x256 px (2.56 km at 10 m) out of a granule.
+4. **3x3 grid:** 9 tiles (7.7 km) around an in-situ measurement, all from the **same** `sat_item` (true for every group in the CSV). Many grids lost tiles during verification.
+5. **Imputed:** the same centre from a **different** `sat_item`, on a date with no water sample. Any satellite or track, from 40 days to ~10 years away. Its label comes only from CyFi, the DL models and a manual check.
+
+Sources: https://sentiwiki.copernicus.eu/web/s2-mission, https://sentiwiki.copernicus.eu/web/s2-products
 
 ### `tile_status` values 
 

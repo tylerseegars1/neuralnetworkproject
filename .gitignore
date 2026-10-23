@@ -1,4 +1,4 @@
-# Ignore the massive dataset (getAmfitrite.m downloads it into dataset/)
+# Ignore the massive dataset (the README's hf download puts it in data/)
 /datasets/
 /data/
 /results/
