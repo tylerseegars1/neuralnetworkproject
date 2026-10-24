@@ -1,11 +1,5 @@
-function image = loadImg(sampleName)
+function image = loadImg(folder)
     
-    scriptFolder = fileparts(mfilename("fullpath"));
-    projectRoot = fileparts(scriptFolder);
-    dataRoot = fullfile(projectRoot, "datasets/amfitrite_open_waters/data");
-
-    folder = fullfile(dataRoot, string(sampleName));
-
     bands = ["B01", "B02", "B03", "B04", "B05", "B06", "B07", "B08", "B8A", "B09", "B11", "B12"];
     image = zeros(256, 256, numel(bands), "single");
     

@@ -3,8 +3,10 @@ clear;
 clc;
 
 % get files
-root = fileparts(mfilename("fullpath"));
-resultsDir = fullfile(root, "results");
+scriptFolder = fileparts(mfilename('fullpath'));
+baseFolder = fileparts(scriptFolder);
+
+resultsDir = fullfile(baseFolder, "results");
 
 load(fullfile(resultsDir, "hab_model.mat"), "net", "classNames");
 load(fullfile(resultsDir, "dataset.mat"), "samples");

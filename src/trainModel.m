@@ -4,8 +4,10 @@ clc;
 rng(42069);
 
 % get files
-root = fileparts(mfilename("fullpath"));
-resultsDir = fullfile(root, "results");
+scriptFolder = fileparts(mfilename('fullpath'));
+baseFolder = fileparts(scriptFolder);
+
+resultsDir = fullfile(baseFolder, "results");
 
 load(fullfile(resultsDir, "dataset.mat"), "samples");
 

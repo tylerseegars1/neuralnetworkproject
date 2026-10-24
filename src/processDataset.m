@@ -5,9 +5,11 @@ clc;
 rng(42);
 
 % get files
-root = fileparts(mfilename("fullpath"));
-dataDir = fullfile(root, "data", "amfitrite-open-waters-hab-sentinel2", "data");
-resultsDir = fullfile(root, "results");
+scriptFolder = fileparts(mfilename('fullpath'));
+baseFolder = fileparts(scriptFolder);
+
+dataDir = fullfile(baseFolder, "data", "amfitrite-open-waters-hab-sentinel2", "data");
+resultsDir = fullfile(baseFolder, "results");
 
 if ~isfolder(dataDir)
     error("no dataset wtf");
@@ -84,7 +86,7 @@ for i = 1:numel(folders)
     lonGroup = floor(lon);
     group = sprintf("geo_%d_%d", latGroup, lonGroup);
 
-    paths(end+1, 1) = string(name);
+    paths(end+1, 1) = string(folder);
     labels(end+1, 1) = label;
     groups(end+1, 1) = group;
     satItems(end+1, 1) = string(meta.sat_item);

@@ -6,7 +6,7 @@
 scriptFolder = fileparts(mfilename('fullpath'));
 baseFolder = fileparts(scriptFolder);
 
-mastersCsv = fullfile(baseFolder, 'data', 'amfitrite', 'amfitrite_open_waters_master.csv');
+mastersCsv = fullfile(baseFolder, 'data', 'amfitrite-open-waters-hab-sentinel2', 'amfitrite_open_waters_master.csv');
 
 % we utilize detect import options
 importOptions = detectImportOptions(mastersCsv);
