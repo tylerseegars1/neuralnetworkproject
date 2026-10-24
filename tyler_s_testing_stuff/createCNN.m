@@ -22,17 +22,29 @@ function layers = createCNN(imageSize, numClasses)
         convolution2dLayer(3, 64, Padding="same", Name="conv2")
         batchNormalizationLayer
         reluLayer
-        maxPooling2dLayer(2, Stride=2)
+        maxPooling2dLayer(2, Stride=2) % 3 layer test
 
-        convolution2dLayer(3, 128, Padding="same", Name="conv3")
-        batchNormalizationLayer
-        reluLayer
-        maxPooling2dLayer(2, Stride=2)
+        % convolution2dLayer(3, 128, Padding="same", Name="conv3")
+        % batchNormalizationLayer
+        % reluLayer
+        % maxPooling2dLayer(2, Stride=2)
 
-        convolution2dLayer(3, 128, Padding="same", Name="conv4")
-        batchNormalizationLayer
-        reluLayer
-        maxPooling2dLayer(2, Stride=2)
+        % convolution2dLayer(3, 128, Padding="same", Name="conv4")
+        % batchNormalizationLayer
+        % reluLayer
+        % maxPooling2dLayer(2, Stride=2)
+
+        % 7 layers test
+        % convolution2dLayer(1, 32, Padding="same", Name="spectral_conv")
+        % batchNormalizationLayer
+        % reluLayer
+        % maxPooling2dLayer(2, Stride=2)
+        % 
+        % convolution2dLayer(1, 32, Padding="same", Name="spectral_conv")
+        % batchNormalizationLayer
+        % reluLayer
+        % maxPooling2dLayer(2, Stride=2)
+        % end 7 layers test
 
         % classification
         globalAveragePooling2dLayer

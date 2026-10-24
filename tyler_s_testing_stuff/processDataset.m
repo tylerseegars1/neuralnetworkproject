@@ -6,7 +6,8 @@ rng(42069);
 
 % get files
 root = fileparts(mfilename("fullpath"));
-dataDir = fullfile(root, "data", "amfitrite-open-waters-hab-sentinel2", "data");
+%dataDir = fullfile(root, "data", "amfitrite-open-waters-hab-sentinel2", "data");
+dataDir = fullfile("C:\Users\thad5\Documents\MATLAB\amfitrite-open-waters-hab-sentinel2\data");
 resultsDir = fullfile(root, "results");
 
 if ~isfolder(dataDir)

@@ -6,7 +6,7 @@ clc;
 root = fileparts(mfilename("fullpath"));
 resultsDir = fullfile(root, "results");
 
-load(fullfile(resultsDir, "hab_model.mat"), "net", "classNames");
+load(fullfile(resultsDir, "trial5_(3layers)\hab_model.mat"), "net", "classNames");
 load(fullfile(resultsDir, "dataset.mat"), "samples");
 
 testSamples = samples(samples.Split == "Test", :);
