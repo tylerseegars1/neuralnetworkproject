@@ -21,6 +21,8 @@ end
 
 bands = ["B01", "B02", "B03", "B04", "B05", "B06", "B07", "B08", "B8A", "B09", "B11", "B12"];
 
+kmThreshold_TileNeigbors = 4;
+
 
 
 % get sample folders
@@ -32,8 +34,14 @@ names = string({folders.name});
 folders = folders(~ismember(names, [".", ".."]));
 
 % storage
+% it will eventually be possible to preallocate these sizes to save on
+% time processed
+lats = zeros(0,1); %added lats and lons to allow for distance calculations
+lons = zeros(0,1);
+
 paths = strings(0, 1);
 labels = strings(0, 1);
+kinds = strings(0, 1);
 groups = strings(0, 1);
 satItems = strings(0, 1);
 
@@ -50,6 +58,9 @@ for i = 1:numel(folders)
         % excludes distractors for now
         continue;
     end
+
+    % Acquire True Label for customization of image flipping scenarios
+    kind = extractAfter(name, "_");
 
     % verify file integrity (remove later?)
     valid = true;
@@ -81,22 +92,39 @@ for i = 1:numel(folders)
     lat = double(meta.center_lat);
     lon = double(meta.center_lon);
 
-    % group images by geolocation
-    latGroup = floor(lat);
-    lonGroup = floor(lon);
-    group = sprintf("geo_%d_%d", latGroup, lonGroup);
 
-    paths(end+1, 1) = string(folder);
-    labels(end+1, 1) = label;
-    groups(end+1, 1) = group;
-    satItems(end+1, 1) = string(meta.sat_item);
+    lats(end+1, 1)      = lat;
+    lons(end+1, 1)      = lon;
+    paths(end+1, 1)     = string(folder);
+    kinds(end+1, 1)     = kind;
+    labels(end+1, 1)    = label;
+    % groups(end+1, 1)    = group;
+    satItems(end+1, 1)  = string(meta.sat_item);
 end
 
 if isempty(paths)
     error("no valid samples wtf");
 end
 
-samples = table(paths, categorical(labels, ["HAB", "NonHAB"]), groups, satItems, variableNames=["Path", "Label", "Group", "SatelliteItem"]);
+% Finding the distance between a main tile and its surroundings
+MdeltaLats = (lats - lats') * 111.2;
+
+meanLat = (lats + lats') / 2;
+MdeltaLons = (lons - lons') * 111.2 .* cosd(meanLat);
+
+% calculate the direct distance between a tile and all other tiles
+MstraightLineDist = sqrt(MdeltaLats.^2 + MdeltaLons.^2);
+
+% 
+tileNeigbors = MstraightLineDist <= kmThreshold_TileNeigbors;
+adjM_graph = graph(tileNeigbors, "omitselfloops");
+
+clusterID = conncomp(adjM_graph);
+nClusters = numel(unique(clusterID));
+
+Group = clusterID(:);
+
+samples = table(paths, categorical(labels, ["HAB", "NonHAB"]), Group, categorical(kinds, ["HAB", "nonHAB", "land", "clouds"]), satItems, variableNames=["Path", "Label", "Group", "Kind", "SatelliteItem"]);
 
 % grouping and train/validate/test sets
 uniqueGroups = unique(samples.Group);
@@ -168,6 +196,12 @@ for split = ["Train", "Validation", "Test"]
         error("adjust grouping it messed up my bad");
     end
 end
+
+% plot for graph, and subgraph to plot cluster tile 6 belongs to, therefore
+% visually seeing the grid as dots
+
+
+
 
 % validation for unique values in groups
 assert(numel(unique(samples.Group(samples.Split == "Train"))) + ...

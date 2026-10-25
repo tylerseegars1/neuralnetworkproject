@@ -81,9 +81,11 @@ title("Test Set");
 exportgraphics(fig, fullfile(resultsDir, "confusion_matrix.png"));
 
 % save
+predictedLabels = predictedLabels(:); % must become a column vector for the next instruction to work.
+
 testSamples.Predicted = predictedLabels;
 testSamples.HABScore = scores(:, 1);
-writetable(testSamples, fullfile(resultDir, "test_predictions.csv"));
+writetable(testSamples, fullfile(resultsDir, "test_predictions.csv"));
 
 metrics = table(accuracy, precision, recall, specificity, f1);
 writetable(metrics, fullfile(resultsDir, "evaluation_metrics.csv"));
