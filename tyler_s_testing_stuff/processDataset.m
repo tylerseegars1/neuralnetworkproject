@@ -1,177 +1,179 @@
-% clean
-clear;
-clc;
+function processDataset()
 
-rng(42069);
+    % get files
+    root = fileparts(mfilename("fullpath"));
+    dataDir = fullfile(root, "..", "data", "amfitrite-open-waters-hab-sentinel2", "data");
+    masterFile = fullfile(root, "amfitrite_open_waters_master.csv");
+    resultsDir = fullfile(root, "results");
+    master = readtable(masterFile, TextType="string", VariableNamingRule="preserve");
+    ids = str2double(string(master.ID));
 
-% get files
-root = fileparts(mfilename("fullpath"));
-dataDir = fullfile(root, "data", "amfitrite-open-waters-hab-sentinel2", "data");
-resultsDir = fullfile(root, "results");
+    % get sample folders
+    folders = dir(dataDir);
+    folders = folders([folders.isdir]);
+    folders = folders(~ismember(string({folders.name}), [".", ".."]));
 
-if ~isfolder(dataDir)
-    error("no dataset wtf");
-end
+    n = height(master);
 
-if ~isfolder(resultsDir)
-    mkdir(resultsDir);
-end
+    paths = strings(n, 1);
+    labels = strings(n, 1);
+    scenes = strings(n, 1);
+    dates = NaT(n, 1);
+    lat = nan(n, 1);
+    lon = nan(n, 1);
 
-bands = ["B01", "B02", "B03", "B04", "B05", "B06", "B07", "B08", "B8A", "B09", "B11", "B12"];
 
-% get sample folders
-folders = dir(dataDir);
-folders = folders([folders.isdir]);
-names = string({folders.name});
-folders = folders(~ismember(names, [".", ".."]));
+    % read sample metadata
+    for i = 1:numel(folders)
+        name = string(folders(i).name);
+        token = regexp(name, '^(\d+)_(HAB|nonHAB|land|clouds)$', 'tokens', 'once');
 
-% storage
-paths = strings(0, 1);
-labels = strings(0, 1);
-groups = strings(0, 1);
-satItems = strings(0, 1);
+        if isempty(token)
+            continue;
+        end
 
-for i = 1:numel(folders)
-    name = string(folders(i).name);
-    folder = fullfile(dataDir, name);
+        row = find(ids == str2double(token{1}));
 
-    % identify class
-    if endsWith(name, "_HAB")
-        label = "HAB";
-    elseif endsWith(name, "_nonHAB") || endsWith(name, "_land") || endsWith(name, "_clouds")
-        label = "NonHAB";
-    else
-        % excludes distractors for now
-        continue;
-    end
+        folder = fullfile(dataDir, name);
 
-    % verify file integrity
-    valid = true;
-    for b = 1:numel(bands)
-        filename = fullfile(folder, bands(b) + "_raw.tif");
-        if ~isfile(filename)
-            valid = false;
-            break;
+        meta = jsondecode(fileread(fullfile(folder, "metadata.json")));
+
+        paths(row) = folder;
+        scenes(row) = string(meta.sat_item);
+        dates(row) = datetime(string(meta.date), InputFormat="yyyy-MM-dd");
+        lat(row) = double(meta.center_lat);
+        lon(row) = double(meta.center_lon);
+
+        % use nonHAB for cloud/land files
+        labels(row) = "NonHAB";
+        if string(token{2}) == "HAB"
+            labels(row) = "HAB";
         end
     end
 
-    if ~valid
-        warning("skipped %s, bands missing wtf", name);
-        continue;
+    % connect samples with same measurement location/date for grouping
+    sampleA = [];
+    sampleB = [];
+
+    [sampleA, sampleB] = connectSamples(scenes, sampleA, sampleB);
+    source = string(master.dataset);
+    source(ismissing(source)) = "";
+    measurementLat = str2double(string(master.decimalLatitude));
+    measurementLon = str2double(string(master.decimalLongitude));
+    event = string(master.eventDate);
+
+    present = isfinite(measurementLat) & isfinite(measurementLon) ...
+        & ~ismissing(event) & strlength(event) > 0;
+
+    keys = strings(n, 1);
+    keys(present) = source(present) + ":" ...
+        + compose('%.6f', measurementLat(present)) + ":" ...
+        + compose('%.6f', measurementLon(present)) + ":" + event(present);
+
+    [sampleA, sampleB] = connectSamples(keys, sampleA, sampleB);
+
+
+    % updated geographic grouping (10km grouping)
+    for i = 1:n-1
+        j = (i+1:n)';
+
+        h = sind((lat(j) - lat(i)) / 2) .^ 2 ...
+            + cosd(lat(i)) * cosd(lat(j)) .* sind((lon(j) - lon(i)) / 2) .^ 2;
+
+        distance = 2 * 6371 * asin(sqrt(min(1, max(0, h))));
+        neighbors = j(distance < 10);
+
+        sampleA = [sampleA; repmat(i, numel(neighbors), 1)]; 
+        sampleB = [sampleB; neighbors]; 
     end
 
-    % read metadata
-    metadataFile = fullfile(folder, "metadata.json");
-    if ~isfile(metadataFile)
-        warning("missing metadata for %s wtf", name);
-        continue;
-    end
-    meta = jsondecode(fileread(metadataFile));
-    fields = ["center_lat", "center_lon", "sat_item"];
-    if ~all(isfield(meta, cellstr(fields)))
-        warning("incomplete metadata in %s wtf", name);
-        continue;
-    end
-    lat = double(meta.center_lat);
-    lon = double(meta.center_lon);
+    group = conncomp(graph(sampleA, sampleB, [], n))';
 
-    % group images by geolocation
-    latGroup = floor(lat);
-    lonGroup = floor(lon);
-    group = sprintf("geo_%d_%d", latGroup, lonGroup);
 
-    paths(end+1, 1) = string(folder);
-    labels(end+1, 1) = label;
-    groups(end+1, 1) = group;
-    satItems(end+1, 1) = string(meta.sat_item);
-end
+    % find split close to 70/15/15
+    rng(42069);
 
-if isempty(paths)
-    error("no valid samples wtf");
-end
+    ratios = [0.70, 0.15, 0.15];
+    splitNames = ["Train", "Validation", "Test"];
+    nGroups = max(group);
 
-samples = table(paths, categorical(labels, ["HAB", "NonHAB"]), groups, satItems, variableNames=["Path", "Label", "Group", "SatelliteItem"]);
+    counts = accumarray(group, 1, [nGroups, 1]);
+    positives = accumarray(group, double(labels == "HAB"), [nGroups, 1]);
 
-% grouping and train/validate/test sets
-uniqueGroups = unique(samples.Group);
-nGroups = numel(uniqueGroups);
+    bestScore = inf;
+    split = strings(n, 1);
 
-ratios = [0.7, 0.15, 0.15];
-splitNames = ["Train", "Validation", "Test"];
+    for attempt = 1:5000
+        order = randperm(nGroups)';
 
-bestScore = inf;
-bestSplit = strings(height(samples), 1);
+        % split groups as best as possible based on midpoint
+        midpoint = (cumsum(counts(order)) - counts(order) / 2) / n;
+        assignments = 1 + (midpoint > ratios(1)) ...
+            + (midpoint > sum(ratios(1:2)));
 
-for attempt = 1:1000
-    shuffledGroups = uniqueGroups(randperm(nGroups));
+        map = zeros(nGroups, 1);
+        map(order) = assignments;
+        score = 0;
 
-    nTrain = floor(0.7 * nGroups);
-    nVal = floor(0.15 * nGroups);
+        for s = 1:3
+            selected = map == s;
+            total = sum(counts(selected));
+            nHAB = sum(positives(selected));
 
-    groupAssignments = strings(nGroups, 1);
-    groupAssignments(1:nTrain) = "Train";
-    groupAssignments(nTrain+1:nTrain+nVal) = "Validation";
-    groupAssignments(nTrain+nVal+1:end) = "Test";
-    
-    [~, groupIdx] = ismember(samples.Group, shuffledGroups);
+            if nHAB == 0 || total == nHAB
+                score = inf;
+                break;
+            end
 
-    candidateSplit = groupAssignments(groupIdx);
-    score = 0;
-    valid = true;
-
-    for s = 1:3
-        idx = candidateSplit == splitNames(s);
-
-        total = sum(idx);
-        nHAB = sum(samples.Label(idx) == "HAB");
-        nNonHAB = sum(samples.Label(idx) == "NonHAB");
-
-        if total == 0 || nHAB == 0 || nNonHAB == 0
-            valid = false;
-            break;
+            score = score + abs(total / n - ratios(s)) ...
+                + abs(nHAB / total - mean(labels == "HAB"));
         end
 
-        actualRatio = total / height(samples);
-        score = score + abs(actualRatio - ratios(s));
-
-        overallHABRatio = mean(samples.Label == "HAB");
-        splitHABRatio = nHAB / total;
-
-        score = score + abs(splitHABRatio - overallHABRatio);
+        if score < bestScore
+            bestScore = score;
+            split = reshape(splitNames(map(group)), [], 1);
+        end
     end
 
-    if valid && score < bestScore
-        bestScore = score;
-        bestSplit = candidateSplit;
+    assert(isfinite(bestScore), ...
+    "Didn't find a good split try again");
+
+    % create split data table
+    samples = table(ids, paths, categorical(labels, ["HAB", "NonHAB"]), ...
+        scenes, dates, lat, lon, group, split, string(master.tile_status), source, ...
+        VariableNames=["ID", "Path", "Label", "SatelliteItem", "Date", ...
+        "Latitude", "Longitude", "Group", "Split", "TileStatus", "Source"]);
+
+
+    % save
+    if ~isfolder(resultsDir)
+        mkdir(resultsDir);
     end
+
+    save(fullfile(resultsDir, "dataset.mat"), "samples", "dataDir");
+
+    fprintf("\nProcessing done\n");
+
 end
 
-if isinf(bestScore)
-    error("couldnt find split woops");
-end
+% connect samples func
+function [sampleA, sampleB] = connectSamples(keys, sampleA, sampleB)
 
-samples.Split = bestSplit;
+    seen = containers.Map('KeyType', 'char', 'ValueType', 'double');
 
+    for i = 1:numel(keys)
+        if ismissing(keys(i)) || strlength(keys(i)) == 0
+            continue;
+        end
 
-% make sure each group has diverse data types (hab and nonhab)
-for split = ["Train", "Validation", "Test"]
-    idx = samples.Split == split;
-    nHAB = sum(samples.Label(idx) == "HAB");
-    nNonHAB = sum(samples.Label(idx) == "NonHAB");
-    if nHAB == 0 || nNonHAB == 0
-        error("adjust grouping it messed up my bad");
+        key = char(keys(i));
+
+        if isKey(seen, key)
+            sampleA(end+1, 1) = seen(key);
+            sampleB(end+1, 1) = i;
+        else
+            seen(key) = i;
+        end
     end
+
 end
-
-% validation for unique values in groups
-assert(numel(unique(samples.Group(samples.Split == "Train"))) + ...
-    numel(unique(samples.Group(samples.Split == "Validation"))) + ...
-    numel(unique(samples.Group(samples.Split == "Test"))) ...
-    == numel(unique(samples.Group)));
-
-% save 
-save(fullfile(resultsDir, "dataset.mat"), "samples");
-
-writetable(samples, fullfile(resultsDir, "dataset_split.csv"));
-
-fprintf("\ndone");
