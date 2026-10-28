@@ -1,8 +1,7 @@
+function layers = createCNN()
 
-function layers = createCNN(imageSize, numClasses)
-
-    % imageSize: [height, width, channels]
-    % numClasses: # of classification categories
+    imageSize = [256, 256, 14];
+    numClasses = 2;
 
     layers = [
         % input
@@ -40,8 +39,9 @@ function layers = createCNN(imageSize, numClasses)
         reluLayer
         dropoutLayer(0.4)
 
-        % Output
+        % output
         fullyConnectedLayer(numClasses, Name="output")
         softmaxLayer
     ];
+
 end
