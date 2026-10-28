@@ -1,92 +1,90 @@
-% clean
-clear;
-clc;
+function predictions = evaluateModel()
 
-% get files
-root = fileparts(mfilename("fullpath"));
-resultsDir = fullfile(root, "results");
+    % get model data
+    root = fileparts(mfilename("fullpath"));
+    resultsDir = fullfile(root, "results");
+    model = load(fullfile(resultsDir, "hab_model.mat"));
+    testSamples = model.samples(model.samples.Split == "Test", :);
+    folders = string(testSamples.Path);
 
-load(fullfile(resultsDir, "hab_model.mat"), "net", "classNames");
-load(fullfile(resultsDir, "dataset.mat"), "samples");
+    % get predictions 
+    scores = predictScores(model.net, folders, model.batchSize);
 
-testSamples = samples(samples.Split == "Test", :);
+    predictedLabels = repmat("NonHAB", numel(folders), 1);
+    predictedLabels(scores(:, 1) >= model.threshold) = "HAB";
 
-if isempty(testSamples)
-    error("no test samples u messed up somewhere");
+    predictions = table(folders, scores(:, 1), predictedLabels, ...
+        VariableNames=["Path", "HABScore", "Predicted"]);
+
+
+    % calculate/print metrics
+    metrics = getMetrics(testSamples.Label, scores(:, 1), model.threshold);
+    disp(metrics);
+
+    % confusion matrix
+    confusion = [
+        metrics.TP, metrics.FN
+        metrics.FP, metrics.TN
+    ];
+    fig = figure;
+    confusionchart(confusion, ["HAB", "NonHAB"]);
+    title("Test set");
+    exportgraphics(fig, fullfile(resultsDir, "confusion_matrix.png"));
+
 end
 
-testFiles = fullfile(testSamples.Path, "metadata.json");
-testImages = fileDatastore(cellstr(testFiles), ReadFcn=@readSamples, FileExtensions=".json");
+% predict HAB score in image func
+function scores = predictScores(net, paths, batchSize)
 
-% get predictions and format
-scores = minibatchpredict(net, testImages);
-if isa(scores, "dlarray")
-    scores = extractdata(scores);
-end
-scores = gather(scores);
+    paths = string(paths(:));
 
-if size(scores, 1) ~= height(testSamples) && size(scores, 2) == height(testSamples)
-    scores = scores';
-end
+    files = fullfile(paths, "B01_raw.tif");
 
-if ~isequal(size(scores), [height(testSamples), 2])
-    error("wrong score dimensions dude");
-end
+    images = fileDatastore(cellstr(files), ...
+        ReadFcn=@(file) loadImg(fileparts(file)), ...
+        FileExtensions=".tif");
 
-% determine predictions
-[~, predictedIdx] = max(scores, [], 2);
+    scores = minibatchpredict(net, images, ...
+        MiniBatchSize=batchSize, ExecutionEnvironment="gpu");
 
-predictedLabels = categorical(classNames(predictedIdx), classNames);
-actualLabels = testSamples.Label;
+    if isa(scores, "dlarray")
+        scores = extractdata(scores);
+    end
 
-% create confusion matrix
-classOrder = categorical(classNames, classNames);
-C = confusionmat(actualLabels, predictedLabels, Order=classOrder);
+    scores = gather(scores);
 
-TP = C(1, 1);
-FN = C(1, 2);
-FP = C(2, 1);
-TN = C(2, 2);
 
-% accuracy metrics
-accuracy = (TP + TN) / sum(C(:));
-precision = TP / max(TP + FP, 1);
-recall = TP / max(TP + FN, 1);
-specificity = TN / max(TN + FP, 1);
-
-if precision + recall == 0
-    f1 = 0;
-else
-    f1 = 2 * precision * recall / (precision + recall);
 end
 
-% print results
-fprintf("\n===== Results =====\n");
-fprintf("Accuracy:    %.2f%%\n", accuracy * 100);
-fprintf("Precision:   %.2f%%\n", precision * 100);
-fprintf("Recall:      %.2f%%\n", recall * 100);
-fprintf("Specificity: %.2f%%\n", specificity * 100);
-fprintf("F1 Score:    %.2f%%\n", f1 * 100);
+% get training metrics func
+function metrics = getMetrics(actual, scores, threshold)
 
-% show confusion matrix
-fprintf("\nConfusion matrix:\n");
-disp(C);
+    actual = string(actual(:));
+    scores = double(scores(:));
 
-fig = figure;
-confusionchart(C, cellstr(classNames));
-title("Test Set");
 
-exportgraphics(fig, fullfile(resultsDir, "confusion_matrix.png"));
+    positive = actual == "HAB";
+    predicted = scores >= threshold;
 
-% save
-testSamples.Predicted = predictedLabels;
-testSamples.HABScore = scores(:, 1);
-writetable(testSamples, fullfile(resultDir, "test_predictions.csv"));
+    TP = sum(positive & predicted);
+    FN = sum(positive & ~predicted);
+    FP = sum(~positive & predicted);
+    TN = sum(~positive & ~predicted);
 
-metrics = table(accuracy, precision, recall, specificity, f1);
-writetable(metrics, fullfile(resultsDir, "evaluation_metrics.csv"));
+    accuracy = (TP + TN) / numel(scores);
+    precision = TP / max(TP + FP, 1);
+    recall = TP / (TP + FN);
+    specificity = TN / (TN + FP);
 
-function image = readSamples(metadataFile)
-    folder = fileparts(metadataFile);
-    image = loadImg(folder);
+    balancedAccuracy = (recall + specificity) / 2;
+    f1 = 2 * TP / max(2 * TP + FP + FN, 1);
+    f2 = 5 * TP / max(5 * TP + FP + 4 * FN, 1);
+    f1f2Mean = (f1 + f2) / 2;
+
+    metrics = table(threshold, TP, FN, FP, TN, accuracy, precision, ...
+        recall, specificity, balancedAccuracy, f1, f2, f1f2Mean, ...
+        VariableNames=["Threshold", "TP", "FN", "FP", "TN", "Accuracy", ...
+        "Precision", "Recall", "Specificity", "BalancedAccuracy", ...
+        "F1", "F2", "F1F2Mean"]);
+
 end
